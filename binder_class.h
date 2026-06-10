@@ -144,3 +144,5 @@ public:
     const char* upper(const char *s);
     const char* lower(const char *s);
 };
+
+const char* cmd2str(uint32_t cmd);

@@ -64,10 +64,6 @@ int IPCThreadState::waitForResponse(Parcel *reply) {
             case BR_DEAD_REPLY:  return -1;
             case BR_FAILED_REPLY: return -2;
             case BR_TRANSACTION_COMPLETE: break;
-            case BR_RELEASE:
-            case BR_DECREFS:
-                mIn.setReadPos(mIn.readPos() + sizeof(binder_uintptr_t) * 2);
-                break;
             default: executeCommand(cmd); break;
             }
         }
@@ -126,6 +122,8 @@ void IPCThreadState::executeCommand(uint32_t cmd) {
         break;
     case BR_RELEASE:
     case BR_DECREFS:
+    case BR_ACQUIRE:
+    case BR_INCREFS:
         mIn.setReadPos(mIn.readPos() + sizeof(binder_uintptr_t) * 2);
         break;
     default:
@@ -209,6 +207,36 @@ int32_t BnStringService::onTransact(uint32_t code, const Parcel &data, Parcel *r
 
     reply->writeString(result);
     return 0;
+}
+
+// ===================== cmd2str — BR_/BC_ command name lookup =====================
+static struct { uint32_t val; const char *name; } g_cmd_table[] = {
+    { BR_NOOP,                  "BR_NOOP" },
+    { BR_TRANSACTION,           "BR_TRANSACTION" },
+    { BR_REPLY,                 "BR_REPLY" },
+    { BR_ACQUIRE_RESULT,        "BR_ACQUIRE_RESULT" },
+    { BR_DEAD_REPLY,            "BR_DEAD_REPLY" },
+    { BR_TRANSACTION_COMPLETE,  "BR_TRANSACTION_COMPLETE" },
+    { BR_INCREFS,               "BR_INCREFS" },
+    { BR_ACQUIRE,               "BR_ACQUIRE" },
+    { BR_RELEASE,               "BR_RELEASE" },
+    { BR_DECREFS,               "BR_DECREFS" },
+    { BR_ATTEMPT_ACQUIRE,       "BR_ATTEMPT_ACQUIRE" },
+    { BR_NOOP,                  "BR_NOOP" },
+    { BR_SPAWN_LOOPER,          "BR_SPAWN_LOOPER" },
+    { BR_FINISHED,              "BR_FINISHED" },
+    { BR_DEAD_BINDER,           "BR_DEAD_BINDER" },
+    { BR_CLEAR_DEATH_NOTIFICATION_DONE, "BR_CLEAR_DEATH_NOTIFICATION_DONE" },
+    { BR_FAILED_REPLY,          "BR_FAILED_REPLY" },
+};
+
+const char* cmd2str(uint32_t cmd) {
+    static char buf[32];
+    for (size_t i = 0; i < sizeof(g_cmd_table)/sizeof(g_cmd_table[0]); i++) {
+        if (g_cmd_table[i].val == cmd) return g_cmd_table[i].name;
+    }
+    snprintf(buf, sizeof(buf), "? (0x%08x)", cmd);
+    return buf;
 }
 
 // ===================== BpStringService =====================
