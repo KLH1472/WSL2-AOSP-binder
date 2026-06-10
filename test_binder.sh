@@ -53,11 +53,11 @@ run_client() {
     timeout 3 "$CLI_BIN" "$1" "$2" 2>&1 || true
 }
 
-result_line() { echo "$1" | sed 's/^[0-9:.]* [0-9]* [0-9]* Client: //' | grep "result:" || echo ""; }
+result_line() { echo "$1" | sed 's/^.* Client: //' | grep "result:" || echo ""; }
 
 assert_result() {
     local name="$1" expected="$2" actual="$3"
-    actual=$(echo "$actual" | sed 's/^[0-9:.]* [0-9]* [0-9]* Client: //')
+    actual=$(echo "$actual" | sed 's/^.* Client: //')
     if [ "$actual" = "$expected" ]; then
         echo "  ✅ PASS: $name"; ((PASS++))
     else
