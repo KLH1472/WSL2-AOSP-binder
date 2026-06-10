@@ -9,6 +9,9 @@
 #include <linux/android/binderfs.h>
 #include "binder_class.h"
 
+#define LOG_TAG "SM"
+#include "log.h"
+
 struct svc_entry { char name[64]; uint32_t handle; } g_services[8];
 int g_nsvc = 0;
 
@@ -21,7 +24,7 @@ public:
                 (struct flat_binder_object*)(data.data + data.offsets[0]);
             strcpy(g_services[g_nsvc].name, name);
             g_services[g_nsvc].handle = fbo->handle;
-            printf("[sm] registered '%s' at handle %u\n", name, fbo->handle);
+            LOG("registered '%s' at handle %u", name, fbo->handle);
             g_nsvc++;
             reply->writeInt32(fbo->handle);
         }
@@ -29,12 +32,12 @@ public:
             const char *name = (const char*)data.data;
             for (int i = 0; i < g_nsvc; i++) {
                 if (strcmp(g_services[i].name, name) == 0) {
-                    printf("[sm] query '%s' -> handle %u\n", name, g_services[i].handle);
+                    LOG("query '%s' -> handle %u", name, g_services[i].handle);
                     reply->write_translated_handle(g_services[i].handle);
                     return 0;
                 }
             }
-            printf("[sm] query '%s' -> not found\n", name);
+            LOG("query '%s' -> not found", name);
         }
         return 0;
     }
@@ -58,7 +61,7 @@ int main() {
     ServiceManager sm;
     IPCThreadState::self()->setContextObject(&sm);
 
-    printf("[sm] ready\n");
+    LOG("ready");
     IPCThreadState::self()->joinThreadPool(true);
     return 0;
 }

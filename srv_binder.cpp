@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include "binder_class.h"
 
+#define LOG_TAG "Server"
+#include "log.h"
+
 int main() {
     setvbuf(stdout, NULL, _IONBF, 0);
     ProcessState::self();
@@ -8,7 +11,7 @@ int main() {
     BnStringService *svc = new BnStringService();
     BpServiceManager sm;
     sm.addService("UpperService", svc);
-    printf("[server] registered 'UpperService'\n");
+    LOG("registered 'UpperService'");
 
     IPCThreadState::self()->joinThreadPool(true);
     return 0;

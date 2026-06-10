@@ -53,10 +53,11 @@ run_client() {
     timeout 3 "$CLI_BIN" "$1" "$2" 2>&1 || true
 }
 
-result_line() { echo "$1" | grep "result:" || echo ""; }
+result_line() { echo "$1" | sed 's/^[0-9:.]* [0-9]* [0-9]* Client: //' | grep "result:" || echo ""; }
 
 assert_result() {
     local name="$1" expected="$2" actual="$3"
+    actual=$(echo "$actual" | sed 's/^[0-9:.]* [0-9]* [0-9]* Client: //')
     if [ "$actual" = "$expected" ]; then
         echo "  ✅ PASS: $name"; ((PASS++))
     else
@@ -95,23 +96,23 @@ start_sm && start_server
 
 T=$(run_client "Hello Binder" "upper")
 assert_result "upper: Hello Binder → HELLO BINDER" \
-    "[client] result: 'HELLO BINDER'" "$(result_line "$T")"
+    "result: 'HELLO BINDER'" "$(result_line "$T")"
 
 T=$(run_client "LOWERCASE SENTENCE" "lower")
 assert_result "lower: LOWERCASE SENTENCE → lowercase sentence" \
-    "[client] result: 'lowercase sentence'" "$(result_line "$T")"
+    "result: 'lowercase sentence'" "$(result_line "$T")"
 
 T=$(run_client "SnAkE CaSe TeXt" "upper")
 assert_result "mixed: SnAkE CaSe TeXt → SNAKE CASE TEXT" \
-    "[client] result: 'SNAKE CASE TEXT'" "$(result_line "$T")"
+    "result: 'SNAKE CASE TEXT'" "$(result_line "$T")"
 
 T=$(run_client "ALREADY UPPER" "upper")
 assert_result "upper no-op: ALREADY UPPER → ALREADY UPPER" \
-    "[client] result: 'ALREADY UPPER'" "$(result_line "$T")"
+    "result: 'ALREADY UPPER'" "$(result_line "$T")"
 
 T=$(run_client "already lower" "lower")
 assert_result "lower no-op: already lower → already lower" \
-    "[client] result: 'already lower'" "$(result_line "$T")"
+    "result: 'already lower'" "$(result_line "$T")"
 
 stop_all; echo ""
 
@@ -123,33 +124,33 @@ start_sm && start_server
 
 T=$(run_client "a" "upper")
 assert_result "single char a→A" \
-    "[client] result: 'A'" "$(result_line "$T")"
+    "result: 'A'" "$(result_line "$T")"
 
 T=$(run_client "Z" "lower")
 assert_result "single char Z→z" \
-    "[client] result: 'z'" "$(result_line "$T")"
+    "result: 'z'" "$(result_line "$T")"
 
 T=$(run_client "123!@#$%^&*()" "upper")
 assert_result "digits + symbols: unchanged" \
-    "[client] result: '123!@#\$%^&*()'" "$(result_line "$T")"
+    "result: '123!@#\$%^&*()'" "$(result_line "$T")"
 
 T=$(run_client "   " "upper")
 assert_result "whitespace only" \
-    "[client] result: '   '" "$(result_line "$T")"
+    "result: '   '" "$(result_line "$T")"
 
 # 200-char string
 S_IN=$(python3 -c "print('b'*200)")
 S_OUT=$(python3 -c "print('B'*200)")
 T=$(run_client "$S_IN" "upper")
 assert_result "200-char string" \
-    "[client] result: '$S_OUT'" "$(result_line "$T")"
+    "result: '$S_OUT'" "$(result_line "$T")"
 
 # 255-char string (server truncation boundary)
 S_IN=$(python3 -c "print('b'*255)")
 S_OUT=$(python3 -c "print('B'*255)")
 T=$(run_client "$S_IN" "upper")
 assert_result "255-char string (truncation boundary)" \
-    "[client] result: '$S_OUT'" "$(result_line "$T")"
+    "result: '$S_OUT'" "$(result_line "$T")"
 
 stop_all; echo ""
 
@@ -171,7 +172,7 @@ start_sm && start_server
 kill $SRV_PID 2>/dev/null; wait $SRV_PID 2>/dev/null || true
 sleep 0.3
 T=$(run_client "hello" "upper")
-assert_contains "dead server → empty result" "[client] result: ''" "$T"
+assert_contains "dead server → empty result" "result: ''" "$T"
 stop_all; echo ""
 
 # =================================================================
