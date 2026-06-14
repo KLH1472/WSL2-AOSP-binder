@@ -5,3 +5,12 @@ build:
 
 test:
 	sudo ./test_binder.sh
+
+sm:
+	sudo ./sm_binder
+
+server:
+	sudo ./srv_binder
+
+cli:
+	sudo ./cli_binder "hello world" upper

@@ -30,6 +30,39 @@ aidl_demo/
         └── IStringService.cpp     全实现（编译进 com.example.binder-cpp 库）
 ```
 
+## Android.bp（3 个独立 target）
+
+```bp
+// aidl/Android.bp — target 1: 定义接口，自动产生 com.example.binder-cpp 库
+aidl_interface {
+    name: "com.example.binder",
+    srcs: ["com/example/binder/*.aidl"],
+    unstable: true,
+}
+
+// server/Android.bp — target 2: Server 进程
+cc_binary {
+    name: "myserver",
+    srcs: ["main.cpp", "StringService.cpp"],
+    shared_libs: [
+        "com.example.binder-cpp",   // aidl_interface 自动产生的库
+        "libbinder",                // BBinder / IPCThreadState / ProcessState
+        "libutils",                 // String16 / sp<>
+    ],
+}
+
+// client/Android.bp — target 3: Client 进程
+cc_binary {
+    name: "myclient",
+    srcs: ["main.cpp"],
+    shared_libs: [
+        "com.example.binder-cpp",   // 与 Server 同一个库
+        "libbinder",
+        "libutils",
+    ],
+}
+```
+
 ## 编译产物
 
 ```
@@ -41,6 +74,59 @@ IStringService.aidl
     └── IStringService.cpp ──→ com.example.binder-cpp 库
                                     ├── myserver  链接
                                     └── myclient  链接
+```
+
+### .aidl → 生成文件对照
+
+```
+.aidl                               生成文件
+──────────────────────────────────────────────────────────────────────
+package com.example.binder;         IStringService.h
+                                    class IStringService : public IInterface {
+interface IStringService {               DECLARE_META_INTERFACE(StringService);
+    String upper(String input);          virtual String16 upper(...) = 0;
+    String lower(String input);          virtual String16 lower(...) = 0;
+}                                   };
+
+                                    BpStringService.h
+                                    class BpStringService
+                                        : public BpInterface<IStringService> {
+                                        String16 upper(...) override;  // 声明
+                                        String16 lower(...) override;
+                                    };
+
+                                    BnStringService.h
+                                    class BnStringService
+                                        : public BnInterface<IStringService> {
+                                        static constexpr
+                                            TRANSACTION_upper = ...;
+                                        static constexpr
+                                            TRANSACTION_lower = ...;
+                                        status_t onTransact(...) override;
+                                    };
+
+                                    IStringService.cpp (唯一 .cpp)
+                                    IMPLEMENT_META_INTERFACE(StringService,
+                                        "com.example.binder.IStringService");
+
+                                    // Bp 方法体 — 拆包解包 + transact
+                                    String16 BpStringService::upper(input) {
+                                        data.writeInterfaceToken(...);
+                                        data.writeString16(input);
+                                        remote()->transact(TRANSACTION_upper, ...);
+                                        reply.readString16(&result);
+                                        return result;
+                                    }
+
+                                    // Bn::onTransact — 拆包 → 调业务 → 打包
+                                    status_t BnStringService::onTransact(...) {
+                                        switch (code) {
+                                        case TRANSACTION_upper:
+                                            data.readString16(&input);
+                                            result = this->upper(input); // ★
+                                            reply->writeString16(result);
+                                        }
+                                    }
 ```
 
 ## 你写什么 vs 编译器写什么
@@ -57,6 +143,36 @@ IStringService.aidl
 | `server/main.cpp` | 你 | `addService` + `joinThreadPool` |
 | `client/main.cpp` | 你 | `waitForService` + `svc->upper("hello")` |
 | `Android.bp` × 3 | 你 | 各 target 编译规则 |
+
+### 你写的代码
+
+```cpp
+// StringService.h — 声明（继承 AIDL 生成的桩）
+class StringService : public BnStringService {
+public:
+    String16 upper(const String16& input) override;
+    String16 lower(const String16& input) override;
+};
+
+// StringService.cpp — 纯业务逻辑（零 Binder 痕迹）
+String16 StringService::upper(const String16& input) {
+    for (char16_t& c : buf)
+        if (c >= 'a' && c <= 'z') c -= 32;
+    return out;
+}
+
+// server/main.cpp — 注册服务 + 进线程池
+ProcessState::self()->startThreadPool();
+sp<StringService> svc = new StringService();
+sm->addService(String16("com.example.binder.IStringService"), svc);
+IPCThreadState::self()->joinThreadPool();
+
+// client/main.cpp — 查服务 + 调用方法
+ProcessState::self()->startThreadPool();
+sp<IStringService> svc = waitForService<IStringService>(
+        IStringService::descriptor);
+String16 result = svc->upper(String16("hello"));
+```
 
 ## 谁 include 什么
 
